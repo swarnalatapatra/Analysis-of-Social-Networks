@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>Brexit Tweets 3rd Week</title>
+	<link type="text/css" rel="stylesheet" href="jquery.qtip.min.css" />
+	<style>
+
+	svg{
+		background-color:#f1e9e6;
+		<!--background-color:#DCE9E9;-->
+		background-color:#fff;
+	}
+
+	#degree_button{
+		width:170px;
+		height:30px;
+		background-color:#fff;
+		border:1px solid #bbb ;
+		box-shadow: 2px  2px 2px #C0C0C0   ;
+		display:none;
+	}
+
+	#community_button{
+		width:170px;
+		height:240px;
+		background-color:#fff;
+		border:1px solid #bbb ;
+		box-shadow: 2px  2px 2px #C0C0C0   ;
+		display:none;
+	}
+
+	.path{
+		font:12px arial;
+		color:#363636;
+		padding: 3px 40px 3px 0px;
+		margin:0 0;
+		border-bottom:1px solid #C0C0C0;
+		cursor:pointer;
+		padding-left:10px;
+		margin-top:1px;
+	}
+
+	.path:hover {
+		background-color: #e0ffff;
+	}
+
+	#initial{
+		display:none;
+	}
+
+	#initial2{
+		display:none;
+	}
+
+	#initial3{
+		display:none;
+	}
+	
+</style>
+</head>
+<body>
+	</style>
+</head>
+
+<body>
+
+<script type="text/javascript" src="http://d3js.org/d3.v3.min.js"></script>
+<script type="text/javascript" src="mutual_json_data_week_3.json"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.0/jquery.min.js"></script>
+<script type="text/javascript" src="jquery.qtip.min.js"></script>
+
+
+<button id="zoom_in">+</button>
+<button id="zoom_out">-</button>
+<button id="communities">Show Communities</button>
+
+
+
+<script>
+
+	//Inserting some margins right and down of the screen
+	var w=innerWidth -30;
+	var h=innerHeight -70;
+
+	//Define a function that can generate different colours for those nodes that belong to the same community each time
+	var colors = d3.scale.ordinal().domain(dataset).range(["#C3DCDC", "#fd9b39", "#ac7bff", "#c203c8", "#888593", "#0b7b3e", "#906407", "#98ba7f", "#fe6794", "#10b0ff", "#d3fe14", "#fee7c0", "#964c63", "#1da49c", "#0ad811", "#bbd9fd", "#fe6cfe", "#297192", "#d1a09c", "#78579e", "#81ffad", "#739400", "#ca6949", "#d9bf01", "#646a58", "#d5097e", "#bb73a9", "#ccf6e9", "#9cb4b6", "#b6a7d4", "#9e8c62", "#6e83c8", "#01af64", "#a71afd", "#cfe589", "#d4ccd1", "#fd4109", "#bf8f0e", "#2f786e", "#4ed1a5", "#d8bb7d", "#a54509", "#6a9276", "#a4777a", "#fc12c9", "#606f15", "#3cc4d9", "#f31c4e", "#73616f", "#f097c6", "#fc8772", "#92a6fe", "#875b44", "#699ab3", "#94bc19", "#7d5bf0"]);
+	 
+
+
+	//Define the zoom behavior
+	var zoom = d3.behavior.zoom()
+							.scaleExtent([0.1, 4])
+							.on("zoom", zoomed );
+
+	//Define the function ZOOMED						
+	function zoomed() {
+	container.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");	
+	}						
+						
+	//Define drag behavior	
+	var nodes_drag = d3.behavior.drag()
+					   .on("dragstart", dragstart)
+					   .on("drag", dragmove)
+					   .on("dragend", dragend);
+
+	//Define Functions for drag behavior. That is to say dragstart ,dragmove and dragend
+	function dragstart(d, i) {
+		force.stop() // stops the force auto positioning before you start dragging
+		d3.event.sourceEvent.stopPropagation();//Use this because otherwise, if i try to drag one solid node, instead of moving only this, the whole network will be dragged
+
+		d3.select(this).attr("fill","orange");
+	};
+
+
+	function dragmove(d, i) {
+		d.px += d3.event.dx;
+		d.py += d3.event.dy;
+		d.x += d3.event.dx;
+		d.y += d3.event.dy; 
+
+		nodes.attr("cx",function(d){ return d.x ;})
+			 .attr("cy",function(d){ return d.y ;}) ;
+		
+		links.attr("x1", function(d) { return d.source.x; })
+			  .attr("y1", function(d) { return d.source.y; })
+			  .attr("x2", function(d) { return d.target.x; })
+			  .attr("y2", function(d) { return d.target.y; });
+		
+		texts.attr("transform", function(d) {return "translate(" + d.x + "," + d.y + ")";});
+	};
+
+	function dragend(d, i) {
+		d.fixed = true; // retain the position of each node stable like that. So, if the user moves two nodes both of them will retain their new positions
+		d3.select(this).attr("fill","#e6e6fa");
+	};
+
+
+	var svg=d3.select("body").append("svg").attr("width",w).attr("height",h).call(zoom);
+
+
+	var container=svg.append("g");
+
+
+	//FORCE LAYOUT
+	var force=d3.layout.force()				
+					   .nodes(dataset.nodes)
+					   .links(dataset.links)
+					   .gravity(0.1)
+					   .size([w,h])
+					   .linkDistance([200])   //In this Case we selected smaller linkDistance, than the distance in the FullMonthNetwork, so that to see the net as more compact
+					   .charge([-350])  
+					   .start();
+	
+	
+	//Links
+	var links=container.selectAll("line").data(dataset.links).enter().append("line").attr("class","link").attr("stroke","#bbb")												
+													 .attr("stroke-width",1);
+	
+
+	//Paths for degree
+	var path = container.selectAll("path")
+		.data(dataset.links)
+		.enter().append("path")
+		.attr("class", "link")
+		.attr("marker-end", "url(#end)");
+				
+
+	//Create the nodes
+	//Each node/circle gets a different radius according to his/her total tweets per week 	
+	var nodes=container.selectAll("circle").data(dataset.nodes).enter().append("circle").attr("r", function(d) {  return d.total_tweet_count/5;  }).attr("fill","#e6e6fa")
+									 .attr("stroke","#483d8b")
+									 .attr("id", function(d) { return d.name; })
+									 .attr("class","node").attr("cursor","pointer")
+									 .call(nodes_drag);
+								
+
+
+	//Insert text name in each node-representing the name of the user
+	var texts = container.selectAll("text").data(dataset.nodes).enter().append("text").attr("font-family","sans-serif").attr("font-size","8")
+									 .attr("class", "label").attr("fill", "black").attr("text-anchor","middle")
+									 .text(function(d) {  return d.name;  });
+
+	
+	//Show the name of each user by hovering over the node
+	nodes.append("title").text(function(d) { return "User's Name: " + d.name + "\n " + 
+													"User's Total Tweets: " + d.total_tweet_count + "\n " + 
+													"User's Total Retweets: " + d.total_retweet_count + "\n " +
+													"User's Total Followers: " + d.followers_count + "\n " +
+													"User's Total Friends: " + d.friends_count + "\n " +
+													"Degree Centrality: " + d.degree_centrality + "\n " +
+													"EigenVector Centrality: " + d.eigenvector_centrality + "\n " +
+													"Closeness Centrality: " + d.closeness_centrality + "\n " +
+													"Betweeness Centrality: " + d.betweenness_centrality;});	
+
+
+	force.on("tick", tick);
+
+	function tick(e) {
+		nodes.each(movement(3 * e.alpha * e.alpha))
+			 .attr("cx",function(d){ return d.x ;})
+			 .attr("cy",function(d){ return d.y ;}) ;
+
+			links.attr("x1", function(d) { return d.source.x; })
+				  .attr("y1", function(d) { return d.source.y; })
+				  .attr("x2", function(d) { return d.target.x; })
+				  .attr("y2", function(d) { return d.target.y; });
+			
+		 texts.attr("transform", function(d) {return "translate(" + d.x + "," + d.y + ")";});		  
+	};				
+	
+	//Cluster nodes-users according to which communities they belong
+	var clusters = new Array(23);
+	var clusters1 = new Array(3);
+	var clusters2 = new Array(22);
+	var clusters3 = new Array(19);
+	var clusters4 = new Array(23);
+	var clusters5 = new Array(23);
+	var clusters6 = new Array(2);
+
+	//Defining the criteria for the community clustering
+	dataset.nodes.map(function(d){
+		
+		if(d.community_GModularity===0) clusters[0] = d;
+		if(d.community_GModularity===1) clusters[1] = d;
+		if(d.community_GModularity===2) clusters[2] = d;
+		if(d.community_GModularity===3) clusters[3] = d;
+		if(d.community_GModularity===4) clusters[4] = d;
+		if(d.community_GModularity===5) clusters[5] = d;
+		if(d.community_GModularity===6) clusters[6] = d;
+		if(d.community_GModularity===7) clusters[7] = d;
+		if(d.community_GModularity===8) clusters[8] = d;
+		if(d.community_GModularity===9) clusters[9] = d;
+		if(d.community_GModularity===10) clusters[10] = d;
+		if(d.community_GModularity===11) clusters[11] = d;
+		if(d.community_GModularity===12) clusters[12] = d;
+		if(d.community_GModularity===13) clusters[13] = d;
+		if(d.community_GModularity===14) clusters[14] = d;
+		if(d.community_GModularity===15) clusters[15] = d;
+		if(d.community_GModularity===16) clusters[16] = d;
+		if(d.community_GModularity===17) clusters[17] = d;
+		if(d.community_GModularity===18) clusters[18] = d;
+		if(d.community_GModularity===19) clusters[19] = d;
+		if(d.community_GModularity===20) clusters[20] = d;
+		if(d.community_GModularity===21) clusters[21] = d;
+		if(d.community_GModularity===22) clusters[22] = d;
+		
+		if(d.community_kernighanLin===0) clusters1[0] = d;
+		if(d.community_kernighanLin===1) clusters1[1] = d;
+
+		if(d.community_labelProp===0) clusters2[0] = d;
+		if(d.community_labelProp===1) clusters2[1] = d;
+		if(d.community_labelProp===2) clusters2[2] = d;
+		if(d.community_labelProp===3) clusters2[3] = d;
+		if(d.community_labelProp===4) clusters2[4] = d;
+		if(d.community_labelProp===5) clusters2[5] = d;
+		if(d.community_labelProp===6) clusters2[6] = d;
+		if(d.community_labelProp===7) clusters2[7] = d;
+		if(d.community_labelProp===8) clusters2[8] = d;
+		if(d.community_labelProp===9) clusters2[9] = d;
+		if(d.community_labelProp===10) clusters2[10] = d;
+		if(d.community_labelProp===11) clusters2[11] = d;
+		if(d.community_labelProp===12) clusters2[12] = d;
+		if(d.community_labelProp===13) clusters2[13] = d;
+		if(d.community_labelProp===14) clusters2[14] = d;
+		if(d.community_labelProp===15) clusters2[15] = d;
+		if(d.community_labelProp===16) clusters2[16] = d;
+		if(d.community_labelProp===17) clusters2[17] = d;
+		if(d.community_labelProp===18) clusters2[18] = d;
+		if(d.community_labelProp===19) clusters2[19] = d;
+		if(d.community_labelProp===20) clusters2[20] = d;
+		if(d.community_labelProp===21) clusters2[21] = d;
+		
+		if(d.community_girvanNew===0) clusters3[0] = d;
+		if(d.community_girvanNew===1) clusters3[1] = d;
+		if(d.community_girvanNew===2) clusters3[2] = d;
+		if(d.community_girvanNew===3) clusters3[3] = d;
+		if(d.community_girvanNew===4) clusters3[4] = d;
+		if(d.community_girvanNew===5) clusters3[5] = d;
+		if(d.community_girvanNew===6) clusters3[6] = d;
+		if(d.community_girvanNew===7) clusters3[7] = d;
+		if(d.community_girvanNew===8) clusters3[8] = d;
+		if(d.community_girvanNew===9) clusters3[9] = d;
+		if(d.community_girvanNew===10) clusters3[10] = d;
+		if(d.community_girvanNew===11) clusters3[11] = d;
+		if(d.community_girvanNew===12) clusters3[12] = d;
+		if(d.community_girvanNew===13) clusters3[13] = d;
+		if(d.community_girvanNew===14) clusters3[14] = d;
+		if(d.community_girvanNew===15) clusters3[15] = d;
+		if(d.community_girvanNew===16) clusters3[16] = d;
+		if(d.community_girvanNew===17) clusters3[17] = d;
+		if(d.community_girvanNew===18) clusters3[18] = d;
+		
+		
+		if(d.community_louvain===0) clusters4[0] = d;
+		if(d.community_louvain===1) clusters4[1] = d;
+		if(d.community_louvain===2) clusters4[2] = d;
+		if(d.community_louvain===3) clusters4[3] = d;
+		if(d.community_louvain===4) clusters4[4] = d;
+		if(d.community_louvain===5) clusters4[5] = d;
+		if(d.community_louvain===6) clusters4[6] = d;
+		if(d.community_louvain===7) clusters4[7] = d;
+		if(d.community_louvain===8) clusters4[8] = d;
+		if(d.community_louvain===9) clusters4[9] = d;
+		if(d.community_louvain===10) clusters4[10] = d;
+		if(d.community_louvain===11) clusters4[11] = d;
+		if(d.community_louvain===12) clusters4[12] = d;
+		if(d.community_louvain===13) clusters4[13] = d;
+		if(d.community_louvain===14) clusters4[14] = d;
+		if(d.community_louvain===15) clusters4[15] = d;
+		if(d.community_louvain===16) clusters4[16] = d;
+		if(d.community_louvain===17) clusters4[17] = d;
+		if(d.community_louvain===18) clusters4[18] = d;
+		if(d.community_louvain===19) clusters4[19] = d;
+		if(d.community_louvain===20) clusters4[20] = d;
+		if(d.community_louvain===21) clusters4[21] = d;
+		if(d.community_louvain===22) clusters4[22] = d;
+		
+		if(d.community_leiden===0) clusters5[0] = d;
+		if(d.community_leiden===1) clusters5[1] = d;
+		if(d.community_leiden===2) clusters5[2] = d;
+		if(d.community_leiden===3) clusters5[3] = d;
+		if(d.community_leiden===4) clusters5[4] = d;
+		if(d.community_leiden===5) clusters5[5] = d;
+		if(d.community_leiden===6) clusters5[6] = d;
+		if(d.community_leiden===7) clusters5[7] = d;
+		if(d.community_leiden===8) clusters5[8] = d;
+		if(d.community_leiden===9) clusters5[9] = d;
+		if(d.community_leiden===10) clusters5[10] = d;
+		if(d.community_leiden===11) clusters5[11] = d;
+		if(d.community_leiden===12) clusters5[12] = d;
+		if(d.community_leiden===13) clusters5[13] = d;
+		if(d.community_leiden===14) clusters5[14] = d;
+		if(d.community_leiden===15) clusters5[15] = d;
+		if(d.community_leiden===16) clusters5[16] = d;
+		if(d.community_leiden===17) clusters5[17] = d;
+		if(d.community_leiden===18) clusters5[18] = d;
+		if(d.community_leiden===19) clusters5[19] = d;
+		if(d.community_leiden===20) clusters5[20] = d;
+		if(d.community_leiden===21) clusters5[21] = d;
+		if(d.community_leiden===22) clusters5[22] = d;
+		
+		//Seperate the users into two groups according to their Opinion about Brexit
+		if(d.brexit_tweet_sentiment <= 0 ){
+			d.brexit_tweet_sentiment = 0
+			clusters6[0] = d;			
+		}
+		if(d.brexit_tweet_sentiment > 0 ){
+			d.brexit_tweet_sentiment = 1
+			clusters6[1] = d;
+		} 
+		
+			console.log(d)	
+	});
+
+
+
+	// Move the nodes, so that those who belong to the same comminity/cluster to be positioned somehow near one to each other
+	function movement(alpha) {
+	  return function(d) {
+		var movement = clusters[d.community_GModularity];
+		var movement = clusters1[d.community_kernighanLin];
+		var movement = clusters2[d.community_labelProp];
+		var movement = clusters3[d.community_girvanNew];
+		var movement = clusters4[d.community_louvain];
+		var movement = clusters5[d.community_leiden];
+		var movement = clusters5[d.community_leiden];
+		var movement = clusters6[d.brexit_tweet_sentiment];
+
+		if (movement === d) return;
+		var x = d.x - movement.x,
+			y = d.y - movement.y,
+			l = Math.sqrt(x * x + y * y),
+			r=14;
+		if (l != r) {
+		  l = (35*l - r) / l * alpha;
+		  d.x -= x *= l;
+		  d.y -= y *= l;
+		  movement.x += x ;
+		  movement.y += y;
+		}
+	  };
+	}
+
+
+
+	//Button for the ZOOM+ function
+	var y=0.9;
+	d3.select("#zoom_in").on("click", function(){
+		y =y +0.2;			
+		container.attr("transform", "translate(" + [(w/2)-(w*y/2),(h/2)-(h*y/2)] + ")"  + " scale(" + y+ ")");  	
+		//pan
+		zoom.translate([(w/2)-(w*y/2),(h/2)-(h*y/2)]).scale(y);
+	});
+
+
+	//Button For the ZOOM- function
+	d3.select("#zoom_out").on("click", function(){	
+		if(y>=0.2)
+		{
+			y =y -0.2;			
+			container.attr("transform", "translate(" + [(w/2)-(w*y/2),(h/2)-(h*y/2)] + ")"  + " scale(" + y+ ")");  	
+			//pan
+			zoom.translate([(w/2)-(w*y/2),(h/2)-(h*y/2)]).scale(y);
+		}
+	});
+							
+	
+
+							
+	//Menu options when using right click of the mouse
+	nodes.on("contextmenu", degree_option );
+
+	function degree_option (data,index){
+
+		var position = d3.mouse(this);
+		d3.select('#degree_button')
+		  .style('position', 'absolute ')
+		  .style('left', position[0] + 30 + "px")
+		  .style('top', position[1]  + "px")
+		  .style('display', 'block');
+
+		d3.event.preventDefault();//Remove like that the existing functionality of the mouse, when right clicking 
+			
+			
+		d3.select("#ena").on("click",function(){
+		
+			//Make visible the button that will show again the network in the initial format, with the initial colours
+			d3.select("#initial").style("display","inline-block");
+			
+			//Make invisible the degree_option menu, when the degree option is selected
+			d3.select("#degree_button").style("display","none");
+			path.transition(500).attr("stroke","ccc").attr("stroke-width",1);
+
+		
+			var d=data;
+			console.log(d);
+			//Colouring
+			nodes.transition(500)
+				.style("opacity", function(o) {
+					return isConnected(o, d) ? 1.0 : 0.05 ;//if the function isConnected returns true, this means that there is connection, so retain the color, otherwise make it blur
+				})
+				.style("fill", function(o) {
+					return isConnected(o, d) ? "orange"  :"#e6e6fa" ;
+				})
+				.attr("r",function(o){
+					return isConnected(o, d) ? 22  : 14 ;
+				})
+				
+				texts.transition(500)
+					.style("opacity",function(o) {
+						return isConnected(o, d) ? 1.0 : 0.05 ;
+					});
+				
+				//Color the corresponding links
+				links.transition(500)
+					.style("stroke-opacity", function(o) {
+						return o.source === d || o.target === d ? 1 : 0.05;
+					}) 					
+			
+		});
+			
+		function isConnected(a, b) {
+			return isConnectedAsTarget(a, b) || isConnectedAsSource(a, b) || a.index == b.index;
+		}
+		function isConnectedAsSource(a, b) {
+			return linkedByIndex[a.index + "," + b.index] ;
+		}
+		function isConnectedAsTarget(a, b) {
+			return linkedByIndex[b.index + "," + a.index];
+		}
+		function isEqual(a, b) {
+			return a.index == b.index;
+		}
+		
+			
+		var linkedByIndex = {};
+		
+		dataset.links.forEach(function(d) {
+		linkedByIndex[d.source.index + "," + d.target.index] = true;
+
+		});
+		
+		
+		//Brings back the network in its initial apperance
+		d3.select("#initial").on("click",function(){
+					
+			nodes.transition(500)
+				.style("opacity",1)
+				.style("fill","#e6e6fa") .attr("r",function(d) {  return d.total_tweet_count/5;  });
+			
+				
+			links.transition(500)
+				.style("stroke-opacity", 1);
+			
+			texts.transition(500).style("opacity", 1);
+		
+			
+			d3.select("#degree_button").style("display","none");
+			d3.select(this).style("display","none");	
+		});
+
+	};
+
+	//Show Clustering according tou Communities
+	d3.select("#communities").on("click",function(){	
+		
+		//Make visible that button that will bring the network to its initial view format
+		d3.select("#initial2").style("display","inline-block");
+			
+		
+		//As soon as the user selects the button <<Show communities>>, then the communities menu is appeared on the screen, a pop up otherwise, 
+		//where the user can select which community wants to see
+		var position = d3.mouse(this);
+		d3.select('#community_button')
+		  .style('position', 'absolute ')
+		  .style('left', position[0] + 50 + "px")
+		  .style('top', position[1]  + 50 + "px")
+		  .style('display', 'block');
+		
+		
+		//Select KernighanLin Community 
+		d3.select("#path1").on("click",function(){
+			d3.select("#community_button").style("display","none");//remove the option menu
+			nodes.style("fill",function(d){ return colors(d.community_kernighanLin);});
+		
+		});
+		
+		//Select GreedyModularity Community
+		d3.select("#path2").on("click",function(){
+			d3.select("#community_button").style("display","none");//remove the option menu
+			nodes.style("fill",function(d){ return colors(d.community_GModularity);});
+
+		});
+		
+		//Select LabelPropagation Community
+		d3.select("#path3").on("click",function(){	
+			d3.select("#community_button").style("display","none");//remove the option menu
+			nodes.style("fill",function(d){ return colors(d.community_labelProp);});
+		});
+		
+		//Select GirvanNewman Community
+		d3.select("#path4").on("click",function(){
+			d3.select("#community_button").style("display","none");//remove the option menu
+			nodes.style("fill",function(d){ return colors(d.community_girvanNew);});
+		});
+		
+		//Select Louvain Community
+		d3.select("#path5").on("click",function(){
+			d3.select("#community_button").style("display","none");//remove the option menu
+			nodes.style("fill",function(d){ return colors(d.community_louvain);});
+		});
+		
+		//Select Leiden Community
+		d3.select("#path6").on("click",function(){
+			d3.select("#community_button").style("display","none");//remove the option menu
+			nodes.style("fill",function(d){ return colors(d.community_leiden);});
+		});
+		
+		//User For or Against?
+		d3.select("#path7").on("click",function(){
+			d3.select("#community_button").style("display","none");//remove the option menu
+			nodes.style("fill",function(d){ return d.brexit_tweet_sentiment>0 ? 'white' : 'red' });
+		});
+		
+		//Let the network gain back its inital appearance
+		d3.select("#initial2").on("click",function(){
+			d3.select("#community_button").style("display","none");//remove the option menu
+			nodes.style("fill","#e6e6fa");
+			d3.select(this).style("display","none");	
+		});
+		
+
+		
+	}); 
+
+
+	//TOOLTIP with qtip2, so that presenting the nodes name
+	$(document).ready(function(){				
+				$('.node').each(function(){				
+					$(this).qtip({
+							style: {
+								classes: 'qtip',
+							},
+							content: {
+								text: 'User: ' + $(this).attr('id'),
+							},
+							show: {
+									event: 'click'
+							},
+							hide:{
+									event: 'unfocus'
+							}
+					});
+				});
+	});
+	//nodes.on("click", function(d) {
+	//	console.log(d)	
+	//}
+
+
+
+	//Like that we remove the initial movement that the traditional force layout algorithm does
+	var k = 0;
+	while ((force.alpha() > 1e-10) && (k < 500)) {
+		force.tick(),
+		k = k + 1;
+	}
+
+</script>
+
+<button id="initial">Show all network</button>
+<button id="initial2">Show all network</button>
+<button id="initial3">Show all network</button>
+
+<div id="community_button">
+	<div id="path1" class="path">Show Community KernighanLin</div>
+	<div id="path2" class="path">Show Community GreedyModularity</div>
+	<div id="path3" class="path">Show Community LabelPropagation</div>
+	<div id="path4" class="path">Show Community GirvanNewman</div>
+	<div id="path5" class="path">Show Community Louvain</div>
+	<div id="path6" class="path">Show Community Leiden</div>
+	<div id="path7" class="path">For or Against Brexit?</div>
+</div>
+
+<div id="degree_button">
+	<div id="ena" class="path">Show Degree</div>
+</div>
+
+
+</body>
+
+
+</html>
